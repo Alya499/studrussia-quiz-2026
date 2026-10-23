@@ -33,13 +33,27 @@ table{border-collapse:collapse;font-size:12px;min-width:920px;width:100%}th,td{b
 const apiRoot="https://lszvfdsiftmonctigfwj.supabase.co/functions/v1/quiz-api";
 const hostRoot="https://Alya499.github.io/studrussia-quiz-2026/";let lastPhase="";
 const id=x=>document.getElementById(x),district=()=>id("district").value;
-let token=sessionStorage.getItem("sr_admin_token")||"",rankings=[];
-async function call(action,body,adm=false){let url=new URL(apiRoot);url.searchParams.set("action",action);if(!body)url.searchParams.set("district",district());let r=await fetch(url,{method:body?"POST":"GET",headers:{"Content-Type":"application/json",...(adm?{"Authorization":"Bearer "+token}:{})},body:body?JSON.stringify(body):undefined,cache:"no-store"});let v=await r.json();if(!r.ok)throw Error(v.error||"Ошибка сервера");return v;}
+let token=sessionStorage.getItem("sr_admin_token")||"",refreshToken=sessionStorage.getItem("sr_admin_refresh")||"",expiresAt=Number(sessionStorage.getItem("sr_admin_expires")||0),rankings=[],refreshInFlight=null;
+function saveSession(v){token=v.token;refreshToken=v.refreshToken||refreshToken;expiresAt=Number(v.expiresAt||0);sessionStorage.setItem("sr_admin_token",token);if(refreshToken)sessionStorage.setItem("sr_admin_refresh",refreshToken);sessionStorage.setItem("sr_admin_expires",String(expiresAt));}
+async function ensureAdminSession(){
+if(!refreshToken||!expiresAt||Date.now()<expiresAt*1000-90000)return;
+if(!refreshInFlight)refreshInFlight=(async()=>{
+let u=new URL(apiRoot);u.searchParams.set("action","admin_refresh");
+let r=await fetch(u,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({refreshToken}),cache:"no-store"});let v=await r.json();if(!r.ok)throw Error("ADMIN_SESSION_EXPIRED");saveSession(v);
+})().finally(()=>{refreshInFlight=null});
+await refreshInFlight;
+}
+async function call(action,body,adm=false){
+if(adm)await ensureAdminSession();
+let url=new URL(apiRoot);url.searchParams.set("action",action);if(!body)url.searchParams.set("district",district());
+let r=await fetch(url,{method:body?"POST":"GET",headers:{"Content-Type":"application/json",...(adm?{"Authorization":"Bearer "+token}:{})},body:body?JSON.stringify(body):undefined,cache:"no-store"});let v=await r.json();
+if(!r.ok)throw Error(v.error||"Ошибка сервера");return v;
+}
 let setup=new URLSearchParams(location.hash.substring(1)).get("setup");if(setup){id("setup").classList.remove("hidden");id("login").classList.add("hidden")}
 id("setgo").onclick=async()=>{id("setmsg").textContent="Проверяем...";try{await call("admin_bootstrap",{setup,email:id("setemail").value,password:id("setpass").value});history.replaceState(null,"",location.pathname+location.search);setup=null;id("setup").classList.add("hidden");id("login").classList.remove("hidden");id("email").value=id("setemail").value;id("setmsg").textContent="Администратор создан. Войдите."}catch(e){id("setmsg").textContent=e.message}};
-id("loggo").onclick=async()=>{id("logmsg").textContent="Проверяем вход...";try{let r=await call("admin_login",{email:id("email").value,password:id("pass").value});token=r.token;sessionStorage.setItem("sr_admin_token",token);show()}catch(e){id("logmsg").textContent=e.message}};
+id("loggo").onclick=async()=>{id("logmsg").textContent="Проверяем вход...";try{let r=await call("admin_login",{email:id("email").value,password:id("pass").value});saveSession(r);show()}catch(e){id("logmsg").textContent=e.message}};
 async function show(){id("login").classList.add("hidden");id("setup").classList.add("hidden");id("work").classList.remove("hidden");await refresh()}
-id("logout").onclick=()=>{token="";sessionStorage.removeItem("sr_admin_token");id("work").classList.add("hidden");id("login").classList.remove("hidden");};
+id("logout").onclick=()=>{token="";refreshToken="";expiresAt=0;for(const k of ["sr_admin_token","sr_admin_refresh","sr_admin_expires"])sessionStorage.removeItem(k);id("work").classList.add("hidden");id("login").classList.remove("hidden");};
 function msg(s){id("status").textContent=s}
 async function refresh(){if(!token)return;
 try{
