@@ -26,7 +26,7 @@ table{border-collapse:collapse;font-size:12px;min-width:920px;width:100%}th,td{b
 <section class="box"><h2>Текущая сессия</h2><p class="big" id="state">Ожидание</p><p id="health"></p><p class="detail">Перезапуск не удаляет предыдущую игру и баллы за портфолио / видео.</p>
 <p><a id="participantLink" target="_blank">Ссылка участникам</a></p><p><a id="screenLink" target="_blank">Открыть экран ведущего</a></p>
 <button class="outline" id="refresh">Обновить результаты</button><button id="logout">Выйти</button></section></div>
-<section class="box"><div class="row" style="justify-content:space-between"><h2>Рейтинг и финалисты</h2><button class="primary" id="download">Скачать Excel</button></div><p>Общий результат: портфолио + видеовизитка + пять зачётных блоков Quiz. При равной общей сумме выше ставится участник с более высоким баллом за портфолио. Если совпадают также баллы портфолио на границе топ-10, требуется решение жюри.</p>
+<section class="box"><div class="row" style="justify-content:space-between"><h2>Рейтинг и финалисты</h2><button class="primary" id="download">Скачать Excel</button></div><p>Общий результат: портфолио + видеовизитка + пять зачётных блоков Quiz. При равной общей сумме выше стоит участник с большим баллом за портфолио, затем — за видеовизитку. Если на границе топ-10 совпали все три показателя, требуется решение жюри.</p>
 <div class="table"><table><thead><tr><th>Место</th><th>ФИО</th><th>Номинация</th><th>Портфолио</th><th>Видео</th><th>Блок 1</th><th>Блок 2</th><th>Блок 3</th><th>Блок 4</th><th>Блок 5</th><th>Quiz</th><th>Сумма</th><th>II тур</th></tr></thead><tbody id="rows"></tbody></table></div>
 </section></section>
 <script>
