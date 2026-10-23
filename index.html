@@ -51,7 +51,7 @@ identity={district:d,name:r.name,sessionId:r.sessionId,token};localStorage.setIt
 function paint(q){qid=q.id;selected=-1;sent=false;el("block").textContent=q.block===0?"РАЗМИНКА · без баллов":"БЛОК "+q.block+" · 0,5 балла";el("qnum").textContent="Вопрос "+q.number+" · 15 секунд на ответ";
 const box=el("choices");box.replaceChildren();(q.choices||[]).forEach((x,i)=>{const btn=document.createElement("button");btn.className="choice";const b=document.createElement("b");b.textContent=letters[i];const span=document.createElement("span");span.textContent=x;btn.append(b,span);btn.onclick=()=>{if(sent||remaining()<=0)return;selected=i;[...box.children].forEach((c,j)=>c.classList.toggle("selected",j===i));el("send").disabled=false;};box.append(btn)});
 el("send").disabled=true;el("amsg").textContent=""}
-let skew=0;
+let skew=0,nextPollHandle=null;
 function remaining(){return state&&state.deadline?Math.max(0,Math.ceil((new Date(state.deadline).getTime()-(Date.now()+skew))/1000)):0}
 async function poll(){let d=district.value;if(!d||busy)return;busy=true;try{
 state=await call("state",null,d);if(state.serverTime)skew=new Date(state.serverTime).getTime()-Date.now();
@@ -67,9 +67,18 @@ const q=state.question;el("waitTitle").textContent="Блок "+q.block+" · во
 el("waitText").textContent="Смотрите вопрос и изображение на общем экране. Варианты ответов откроются через "+remaining()+" сек.";
 }else if(state.phase==="paused"){el("waitTitle").textContent="Пауза";el("waitText").textContent="Ожидайте возобновления Quiz.";}
 else{el("waitTitle").textContent="Вы зарегистрированы";el("waitText").textContent="Ожидайте начала игры на общем экране.";}
-}catch(e){if(identity)el("waitText").textContent="Восстанавливаем соединение…";}finally{busy=false}}
+}catch(e){if(identity)el("waitText").textContent="Восстанавливаем соединение…";}finally{
+ busy=false;
+ const phase=state?.phase;
+ let delay=phase==="lobby"||phase==="paused"||phase==="not_started"?3500:
+ phase==="question"||phase==="answer"?Math.max(600,remaining()*1000+220):
+ phase==="finished"?15000:4000;
+ clearTimeout(nextPollHandle);
+ nextPollHandle=setTimeout(poll,delay);
+ }}
 el("send").onclick=async()=>{if(!identity||selected<0||sent||remaining()<=0)return;el("send").disabled=true;try{const r=await call("answer",{district:identity.district,token:identity.token,questionId:qid,choiceIndex:selected});sent=true;el("amsg").textContent=r.status==="SAVED"?"Ответ сохранён":"Ответ уже был отправлен"}catch(e){el("amsg").textContent=e.message==="CLOSED"?"Время ответа истекло":e.message;el("send").disabled=true;}};
-load();poll();setInterval(poll,1800);
+load();poll();
+document.addEventListener("visibilitychange",()=>{if(!document.hidden)poll();});
 setInterval(()=>{if(state?.phase==="answer"){el("timer").textContent=remaining();if(remaining()===0)el("send").disabled=true;}
 if(state?.phase==="question"&&identity)el("waitText").textContent="Смотрите вопрос на общем экране. Варианты ответов откроются через "+remaining()+" сек.";},350);
 </script><section class="box"><p class="detail">СтудRussia · Конкурс 2026 · Использование мобильных устройств. Результаты доступны только администрации.</p></section></main></body></html>
