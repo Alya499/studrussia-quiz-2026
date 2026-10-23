@@ -1,0 +1,66 @@
+<!doctype html><html lang="ru"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>СтудRussia — участник</title><style>
+:root{font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;color:#20252c;background:#f7f8fa}
+*{box-sizing:border-box}body{margin:0}header{display:flex;justify-content:space-between;align-items:center;padding:18px 5%;background:white;border-bottom:3px solid #c52231}
+header b{font-size:25px;color:#20232a}header b span{color:#c52231}header small{display:block;font-size:12px;letter-spacing:1px;color:#858993}
+main{width:min(1080px,94vw);margin:24px auto 80px}.box{background:white;border:1px solid #ebedf0;border-radius:17px;padding:24px;margin-bottom:17px;box-shadow:0 3px 18px #10101008}
+.hero{background:linear-gradient(110deg,#fff,#fff2f2);border:1px solid #ffeded;border-radius:17px;padding:29px;margin-bottom:18px}
+h1{font-size:clamp(26px,4vw,42px);margin:5px 0 10px}h2{margin:0 0 18px;font-size:22px}p{line-height:1.55;color:#525a65}.red{color:#c52231}
+input,select,button{font:inherit}input,select{width:100%;border:1px solid #cdd1d9;border-radius:11px;background:#fff;padding:13px;margin:6px 0 15px;font-size:16px}
+label{display:block;font-weight:650;margin-top:6px}button{padding:13px 16px;border-radius:11px;border:1px solid #d2d5d9;background:#fff;cursor:pointer;font-weight:680;line-height:1.25}button:disabled{opacity:.45;cursor:default}.primary{background:#bf1c2d;color:#fff;border-color:#bf1c2d}.primary:hover{background:#aa1726}.secondary{background:#232932;color:white;border-color:#232932}.outline{background:#fff;color:#bf1c2d;border-color:#eec7cb}.danger{background:#fff0f1;color:#9e1020;border-color:#eabdc3}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}.row{display:flex;gap:9px;flex-wrap:wrap;align-items:center}.hidden{display:none!important}.status{color:#7a4150;min-height:1em}.pill{border-radius:999px;background:#f4e5e6;color:#ab1325;padding:6px 13px;font-size:13px;font-weight:700}
+.choices{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:17px 0}.choice{padding:18px;text-align:left;min-height:90px;border:1px solid #d7dbe1;border-radius:14px;background:#fff;display:flex;gap:12px;align-items:center}.choice b{width:36px;height:36px;border-radius:9px;flex-shrink:0;background:#fae8e9;color:#bd162a;display:grid;place-items:center}.choice.selected{background:#fff0f1;border-color:#bd162a;box-shadow:0 0 0 2px #eaaeb7}.choice.correct{border-color:#178049;background:#e5f6eb}
+.timer{display:inline-block;font-size:30px;border:2px solid #c52231;border-radius:12px;padding:9px 16px;color:#bd1b2d;font-weight:800}
+table{border-collapse:collapse;font-size:12px;min-width:920px;width:100%}th,td{border-bottom:1px solid #e5e7eb;padding:10px 8px;text-align:left}th{background:#f3f4f6;position:sticky;top:0}td{white-space:nowrap}.table{overflow-x:auto;max-height:540px}
+.screen .box{min-height:65vh}.screen .choices{gap:17px}.screen .choice{font-size:23px}.screen #qtext{font-size:32px;color:#20242b;font-weight:760;line-height:1.3}.screen #photo{display:block;max-height:34vh;max-width:100%;object-fit:contain;margin:10px auto}
+.detail{font-size:14px;color:#6e7680}.ok{color:#157748}.big{font-size:28px;font-weight:750;color:#c52231}
+@media(max-width:720px){main{width:95vw;margin:15px auto}header{padding:14px}.grid{grid-template-columns:1fr}.box{padding:18px}.hero{padding:20px}.choices{grid-template-columns:1fr}.choice{min-height:73px}.screen .choice{font-size:17px}}
+</style></head><body><header><b>Студ<span>Russia</span><small>КОНКУРС · 2026</small></b><span class="pill">Первый тур</span></header><main><section class="hero"><span class="pill">ПЕРВЫЙ ТУР · 2026</span><h1>Большой Quiz СтудRussia</h1><p>Вопросы и изображения — на экране ведущего. С телефона выбирайте только вариант ответа.</p></section>
+<section class="box" id="registration"><h2>Регистрация участника</h2>
+<label>Федеральный округ</label><select id="district"><option value="">Выберите округ</option><option value="СКФО">СКФО</option><option value="ЮФО">ЮФО</option></select>
+<label>Номинация</label><select id="nomination" disabled></select>
+<label>Фамилия, имя, отчество</label><select id="person" disabled></select>
+<button class="primary" id="join">Присоединиться к Quiz</button><p id="rmsg" class="status"></p><p class="detail">Один участник — одна регистрация в текущей сессии. При новом запуске можно войти заново.</p></section>
+<section class="box hidden" id="waiting"><h2 id="waitTitle">Вы зарегистрированы</h2><p id="who"></p><p id="waitText">Ожидайте запуска вопроса ведущим.</p></section>
+<section class="box hidden" id="questionBox"><div class="row" style="justify-content:space-between"><div><b class="red" id="block"></b><h2 id="qnum">Вопрос</h2></div><div class="timer" id="timer">—</div></div><p class="detail">Выберите вариант. Вопрос смотрите на большом экране.</p><div class="choices" id="choices"></div><button class="primary" id="send" disabled>Отправить ответ</button><p class="status" id="amsg"></p></section>
+<section class="box hidden" id="finished"><h2>Спасибо за участие!</h2><p>Quiz завершён. Результаты объявят организаторы.</p></section>
+<script>
+const apiRoot="https://lszvfdsiftmonctigfwj.supabase.co/functions/v1/quiz-api";
+const el=id=>document.getElementById(id);
+const show=id=>["registration","waiting","questionBox","finished"].forEach(x=>el(x).classList.toggle("hidden",x!==id));
+async function call(action,body,dist){let u=new URL(apiRoot);u.searchParams.set("action",action);if(dist)u.searchParams.set("district",dist);let r=await fetch(u,{method:body?"POST":"GET",headers:{"Content-Type":"application/json"},body:body?JSON.stringify(body):undefined,cache:"no-store"});const v=await r.json();if(!r.ok)throw Error(v.error||"Ошибка связи");return v;}
+const letters=["А","Б","В","Г"];let noms=[],roster=[],identity=null,state=null,qid="",selected=-1,sent=false,busy=false;
+let district=el("district"),nom=el("nomination"),person=el("person");
+let urlDistrict=new URLSearchParams(location.search).get("district");if(["ЮФО","СКФО"].includes(urlDistrict))district.value=urlDistrict;
+const store=d=>"studrussia-quiz-"+d;
+function options(target,items,placeholder){target.replaceChildren(new Option(placeholder,""));items.forEach(x=>target.add(new Option(x[1],String(x[0]))));}
+async function load(){
+let d=district.value;nom.disabled=true;person.disabled=true;roster=[];if(!d)return;
+try{
+let r=await Promise.all([call("nominations"),call("roster",null,d)]);noms=r[0].nominations;roster=r[1].roster;
+options(nom,noms.map(n=>[n.id,n.title]),"Выберите номинацию");nom.disabled=false;
+let old=localStorage.getItem(store(d));identity=old?JSON.parse(old):null;if(identity&&identity.district===d){el("who").textContent=identity.name;show("waiting");}
+}catch(e){el("rmsg").textContent=e.message;}}
+nom.onchange=()=>{options(person,roster.filter(x=>String(x.nomination_id)===nom.value).map(x=>[x.id,x.full_name]),"Выберите ФИО");person.disabled=!nom.value};
+district.onchange=()=>{identity=null;show("registration");load()};
+el("join").onclick=async()=>{
+let p=roster.find(x=>x.id===person.value),d=district.value;if(!p)return el("rmsg").textContent="Выберите округ, номинацию и ФИО.";
+el("join").disabled=true;try{let a=new Uint8Array(32);crypto.getRandomValues(a);const token=Array.from(a,x=>x.toString(16).padStart(2,"0")).join("");
+let r=await call("join",{district:d,playerId:p.id,token});
+identity={district:d,name:r.name,sessionId:r.sessionId,token};localStorage.setItem(store(d),JSON.stringify(identity));el("who").textContent=r.name;show("waiting");el("rmsg").textContent="";
+}catch(e){el("rmsg").textContent=e.message}finally{el("join").disabled=false}};
+function paint(q){qid=q.id;selected=-1;sent=false;el("block").textContent=q.block===0?"РАЗМИНКА · без баллов":"БЛОК "+q.block+" · 0,5 балла";el("qnum").textContent="Вопрос "+q.number;
+const box=el("choices");box.replaceChildren();q.choices.forEach((x,i)=>{const btn=document.createElement("button");btn.className="choice";const b=document.createElement("b");b.textContent=letters[i];const span=document.createElement("span");span.textContent=x;btn.append(b,span);btn.onclick=()=>{if(sent||remaining()<=0)return;selected=i;[...box.children].forEach((c,j)=>c.classList.toggle("selected",j===i));el("send").disabled=false;};box.append(btn)});
+el("send").disabled=true;el("amsg").textContent=""}
+function remaining(){return state&&state.deadline?Math.max(0,Math.ceil((new Date(state.deadline).getTime()-Date.now())/1000)):0}
+async function poll(){let d=district.value;if(!d||busy)return;busy=true;try{
+state=await call("state",null,d);
+if(identity&&state.sessionId!==identity.sessionId){localStorage.removeItem(store(d));identity=null;qid="";show("registration");el("rmsg").textContent="Открыта новая игра. Войдите снова.";return;}
+if(!identity)return;
+if(state.phase==="finished"){show("finished");return;}
+if(state.phase==="running"&&state.question){if(qid!==state.question.id)paint(state.question);show("questionBox");el("timer").textContent=remaining();el("send").disabled=sent||selected<0||remaining()<=0;return;}
+show("waiting");el("waitTitle").textContent=state.phase==="reveal"?"Ответы закрыты":state.phase==="paused"?"Перерыв":"Вы зарегистрированы";
+el("waitText").textContent="Ожидайте следующего вопроса на экране ведущего.";
+}catch(e){if(identity)el("waitText").textContent="Восстанавливаем соединение...";}finally{busy=false}}
+el("send").onclick=async()=>{if(!identity||selected<0||sent)return;el("send").disabled=true;try{const r=await call("answer",{district:identity.district,token:identity.token,questionId:qid,choiceIndex:selected});sent=true;el("amsg").textContent=r.status==="SAVED"?"Ответ сохранён":"Ответ уже был отправлен"}catch(e){el("amsg").textContent=e.message;el("send").disabled=false}};
+load();poll();setInterval(poll,2200);setInterval(()=>{if(state?.phase==="running"){el("timer").textContent=remaining();if(remaining()===0)el("send").disabled=true}},400);
+</script><section class="box"><p class="detail">СтудRussia · Конкурс 2026 · Использование мобильных устройств. Результаты доступны только администрации.</p></section></main></body></html>
