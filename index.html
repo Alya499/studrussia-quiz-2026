@@ -14,7 +14,7 @@ table{border-collapse:collapse;font-size:12px;min-width:920px;width:100%}th,td{b
 .screen .box{min-height:65vh}.screen .choices{gap:17px}.screen .choice{font-size:23px}.screen #qtext{font-size:32px;color:#20242b;font-weight:760;line-height:1.3}.screen #photo{display:block;max-height:34vh;max-width:100%;object-fit:contain;margin:10px auto}
 .detail{font-size:14px;color:#6e7680}.ok{color:#157748}.big{font-size:28px;font-weight:750;color:#c52231}
 @media(max-width:720px){main{width:95vw;margin:15px auto}header{padding:14px}.grid{grid-template-columns:1fr}.box{padding:18px}.hero{padding:20px}.choices{grid-template-columns:1fr}.choice{min-height:73px}.screen .choice{font-size:17px}}
-</style></head><body><header><b>Студ<span>Russia</span><small>КОНКУРС · 2026</small></b><span class="pill">Первый тур</span></header><main><section class="hero"><span class="pill">ПЕРВЫЙ ТУР · 2026</span><h1>Большой Quiz СтудRussia</h1><p>Вопросы и изображения — на экране ведущего. С телефона выбирайте только вариант ответа.</p></section>
+</style></head><body><header><b>Студ<span>Russia</span><small>КОНКУРС · 2026</small></b><span class="pill">Первый тур</span></header><main><section class="hero"><span class="pill">ПЕРВЫЙ ТУР · 2026</span><h1>Большой Quiz СтудRussia</h1><p>Вопрос и изображение показаны на общем экране. На телефоне варианты ответа откроются автоматически на 15 секунд после минуты показа вопроса.</p></section>
 <section class="box" id="registration"><h2>Регистрация участника</h2>
 <label>Федеральный округ</label><select id="district"><option value="">Выберите округ</option><option value="СКФО">СКФО</option><option value="ЮФО">ЮФО</option></select>
 <label>Номинация</label><select id="nomination" disabled></select>
@@ -48,19 +48,28 @@ el("join").disabled=true;try{let a=new Uint8Array(32);crypto.getRandomValues(a);
 let r=await call("join",{district:d,playerId:p.id,token});
 identity={district:d,name:r.name,sessionId:r.sessionId,token};localStorage.setItem(store(d),JSON.stringify(identity));el("who").textContent=r.name;show("waiting");el("rmsg").textContent="";
 }catch(e){el("rmsg").textContent=e.message}finally{el("join").disabled=false}};
-function paint(q){qid=q.id;selected=-1;sent=false;el("block").textContent=q.block===0?"РАЗМИНКА · без баллов":"БЛОК "+q.block+" · 0,5 балла";el("qnum").textContent="Вопрос "+q.number;
-const box=el("choices");box.replaceChildren();q.choices.forEach((x,i)=>{const btn=document.createElement("button");btn.className="choice";const b=document.createElement("b");b.textContent=letters[i];const span=document.createElement("span");span.textContent=x;btn.append(b,span);btn.onclick=()=>{if(sent||remaining()<=0)return;selected=i;[...box.children].forEach((c,j)=>c.classList.toggle("selected",j===i));el("send").disabled=false;};box.append(btn)});
+function paint(q){qid=q.id;selected=-1;sent=false;el("block").textContent=q.block===0?"РАЗМИНКА · без баллов":"БЛОК "+q.block+" · 0,5 балла";el("qnum").textContent="Вопрос "+q.number+" · 15 секунд на ответ";
+const box=el("choices");box.replaceChildren();(q.choices||[]).forEach((x,i)=>{const btn=document.createElement("button");btn.className="choice";const b=document.createElement("b");b.textContent=letters[i];const span=document.createElement("span");span.textContent=x;btn.append(b,span);btn.onclick=()=>{if(sent||remaining()<=0)return;selected=i;[...box.children].forEach((c,j)=>c.classList.toggle("selected",j===i));el("send").disabled=false;};box.append(btn)});
 el("send").disabled=true;el("amsg").textContent=""}
-function remaining(){return state&&state.deadline?Math.max(0,Math.ceil((new Date(state.deadline).getTime()-Date.now())/1000)):0}
+let skew=0;
+function remaining(){return state&&state.deadline?Math.max(0,Math.ceil((new Date(state.deadline).getTime()-(Date.now()+skew))/1000)):0}
 async function poll(){let d=district.value;if(!d||busy)return;busy=true;try{
-state=await call("state",null,d);
-if(identity&&state.sessionId!==identity.sessionId){localStorage.removeItem(store(d));identity=null;qid="";show("registration");el("rmsg").textContent="Открыта новая игра. Войдите снова.";return;}
+state=await call("state",null,d);if(state.serverTime)skew=new Date(state.serverTime).getTime()-Date.now();
+if(identity&&state.sessionId!==identity.sessionId){localStorage.removeItem(store(d));identity=null;qid="";show("registration");el("rmsg").textContent="Новая игра. Выберите своё имя ещё раз.";return;}
 if(!identity)return;
 if(state.phase==="finished"){show("finished");return;}
-if(state.phase==="running"&&state.question){if(qid!==state.question.id)paint(state.question);show("questionBox");el("timer").textContent=remaining();el("send").disabled=sent||selected<0||remaining()<=0;return;}
-show("waiting");el("waitTitle").textContent=state.phase==="reveal"?"Ответы закрыты":state.phase==="paused"?"Перерыв":"Вы зарегистрированы";
-el("waitText").textContent="Ожидайте следующего вопроса на экране ведущего.";
-}catch(e){if(identity)el("waitText").textContent="Восстанавливаем соединение...";}finally{busy=false}}
-el("send").onclick=async()=>{if(!identity||selected<0||sent)return;el("send").disabled=true;try{const r=await call("answer",{district:identity.district,token:identity.token,questionId:qid,choiceIndex:selected});sent=true;el("amsg").textContent=r.status==="SAVED"?"Ответ сохранён":"Ответ уже был отправлен"}catch(e){el("amsg").textContent=e.message;el("send").disabled=false}};
-load();poll();setInterval(poll,2200);setInterval(()=>{if(state?.phase==="running"){el("timer").textContent=remaining();if(remaining()===0)el("send").disabled=true}},400);
+if(state.phase==="answer"&&state.question){
+if(qid!==state.question.id)paint(state.question);
+show("questionBox");el("timer").textContent=remaining();el("send").disabled=sent||selected<0||remaining()<=0;return;}
+show("waiting");
+if(state.phase==="question"&&state.question){
+const q=state.question;el("waitTitle").textContent="Блок "+q.block+" · вопрос "+q.number;
+el("waitText").textContent="Смотрите вопрос и изображение на общем экране. Варианты ответов откроются через "+remaining()+" сек.";
+}else if(state.phase==="paused"){el("waitTitle").textContent="Пауза";el("waitText").textContent="Ожидайте возобновления Quiz.";}
+else{el("waitTitle").textContent="Вы зарегистрированы";el("waitText").textContent="Ожидайте начала игры на общем экране.";}
+}catch(e){if(identity)el("waitText").textContent="Восстанавливаем соединение…";}finally{busy=false}}
+el("send").onclick=async()=>{if(!identity||selected<0||sent||remaining()<=0)return;el("send").disabled=true;try{const r=await call("answer",{district:identity.district,token:identity.token,questionId:qid,choiceIndex:selected});sent=true;el("amsg").textContent=r.status==="SAVED"?"Ответ сохранён":"Ответ уже был отправлен"}catch(e){el("amsg").textContent=e.message==="CLOSED"?"Время ответа истекло":e.message;el("send").disabled=true;}};
+load();poll();setInterval(poll,1800);
+setInterval(()=>{if(state?.phase==="answer"){el("timer").textContent=remaining();if(remaining()===0)el("send").disabled=true;}
+if(state?.phase==="question"&&identity)el("waitText").textContent="Смотрите вопрос на общем экране. Варианты ответов откроются через "+remaining()+" сек.";},350);
 </script><section class="box"><p class="detail">СтудRussia · Конкурс 2026 · Использование мобильных устройств. Результаты доступны только администрации.</p></section></main></body></html>
