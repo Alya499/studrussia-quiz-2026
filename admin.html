@@ -20,8 +20,8 @@ table{border-collapse:collapse;font-size:12px;min-width:920px;width:100%}th,td{b
 <section id="work" class="hidden">
 <div class="grid"><section class="box"><h2>Управление игрой</h2><label>Округ</label><select id="district"><option>СКФО</option><option>ЮФО</option></select>
 <label class="row"><input id="demo" type="checkbox" checked style="width:20px;margin:0"> Тестовая сессия</label><p><button class="secondary" id="new">Начать новую игру</button></p>
-<label>Вопрос</label><select id="question"></select><label>Время ответа (секунд)</label><input id="seconds" type="number" value="45" min="5" max="300">
-<div class="row"><button class="primary" id="open">Показать вопрос</button><button id="reveal">Открыть ответ</button><button id="pause">Пауза</button></div>
+<p class="detail"><b>Автоматический сценарий:</b> 55 вопросов подряд. Каждый показывается 60 секунд, затем 15 секунд принимаются ответы на телефонах. Вопросы переключаются сами. Разминка без баллов.</p>
+<div class="row"><button class="primary" id="start">Запустить весь Quiz автоматически</button><button id="pause">Пауза</button><button id="resume">Продолжить</button></div>
 <p><button class="danger" id="finish">Завершить игру и рассчитать рейтинг</button></p><p id="status" class="status"></p></section>
 <section class="box"><h2>Текущая сессия</h2><p class="big" id="state">Ожидание</p><p id="health"></p><p class="detail">Перезапуск не удаляет предыдущую игру и баллы за портфолио / видео.</p>
 <p><a id="participantLink" target="_blank">Ссылка участникам</a></p><p><a id="screenLink" target="_blank">Открыть экран ведущего</a></p>
@@ -31,9 +31,9 @@ table{border-collapse:collapse;font-size:12px;min-width:920px;width:100%}th,td{b
 </section></section>
 <script>
 const apiRoot="https://lszvfdsiftmonctigfwj.supabase.co/functions/v1/quiz-api";
-const hostRoot="https://Alya499.github.io/studrussia-quiz-2026/";
+const hostRoot="https://Alya499.github.io/studrussia-quiz-2026/";let lastPhase="";
 const id=x=>document.getElementById(x),district=()=>id("district").value;
-let token=sessionStorage.getItem("sr_admin_token")||"",questions=[],rankings=[];
+let token=sessionStorage.getItem("sr_admin_token")||"",rankings=[];
 async function call(action,body,adm=false){let url=new URL(apiRoot);url.searchParams.set("action",action);if(!body)url.searchParams.set("district",district());let r=await fetch(url,{method:body?"POST":"GET",headers:{"Content-Type":"application/json",...(adm?{"Authorization":"Bearer "+token}:{})},body:body?JSON.stringify(body):undefined,cache:"no-store"});let v=await r.json();if(!r.ok)throw Error(v.error||"Ошибка сервера");return v;}
 let setup=new URLSearchParams(location.hash.substring(1)).get("setup");if(setup){id("setup").classList.remove("hidden");id("login").classList.add("hidden")}
 id("setgo").onclick=async()=>{id("setmsg").textContent="Проверяем...";try{await call("admin_bootstrap",{setup,email:id("setemail").value,password:id("setpass").value});history.replaceState(null,"",location.pathname+location.search);setup=null;id("setup").classList.add("hidden");id("login").classList.remove("hidden");id("email").value=id("setemail").value;id("setmsg").textContent="Администратор создан. Войдите."}catch(e){id("setmsg").textContent=e.message}};
@@ -41,17 +41,23 @@ id("loggo").onclick=async()=>{id("logmsg").textContent="Проверяем вх�
 async function show(){id("login").classList.add("hidden");id("setup").classList.add("hidden");id("work").classList.remove("hidden");await refresh()}
 id("logout").onclick=()=>{token="";sessionStorage.removeItem("sr_admin_token");id("work").classList.add("hidden");id("login").classList.remove("hidden");};
 function msg(s){id("status").textContent=s}
-async function refresh(){if(!token)return;try{const [q,s,h]=await Promise.all([call("admin_questions",null,true),call("state"),call("health")]);questions=q.questions||[];let select=id("question");let old=select.value;select.replaceChildren();questions.forEach(q=>select.add(new Option("Блок "+q.block_id+" / вопрос "+q.question_number+": "+q.question_text.slice(0,50),q.id)));if(old)select.value=old;
-id("state").textContent=s.phase+" · "+(s.isDemo?"ТЕСТ":"КОНКУРС")+" · "+(s.question?.id||"—");id("health").textContent=h.questions+" вопросов, "+h.players+" участников";
+async function refresh(){if(!token)return;
+try{
+const [s,h]=await Promise.all([call("state"),call("health")]);
+const phases={lobby:"Ожидание участников",question:"Вопрос на экране",answer:"Ответы на телефонах",paused:"Пауза",finished:"Quiz завершён",not_started:"Игра не создана"};
+id("state").textContent=(phases[s.phase]||s.phase)+" · "+(s.isDemo?"ТЕСТ":"КОНКУРС")+(s.ordinal?" · "+s.ordinal+" из "+s.total:"");
+id("health").textContent=h.questions+" вопросов, "+h.players+" участников";
 id("participantLink").href=hostRoot+"?district="+encodeURIComponent(district());
 id("screenLink").href=hostRoot+"screen.html?district="+encodeURIComponent(district());
-await getRanks();}catch(e){msg("Ошибка: "+e.message)}}
+await getRanks();
+}catch(e){msg("Ошибка: "+e.message)}}
 async function getRanks(){try{let res=await call("admin_rankings",null,true);rankings=res.rankings||[];const box=id("rows");box.replaceChildren();for(let a of rankings){const tr=document.createElement("tr");let values=[a.ranking_position,a.name,a.nomination,a.portfolio,a.video,a.block_1,a.block_2,a.block_3,a.block_4,a.block_5,a.quiz_total,a.grand_total,a.needs_jury_review?"Решение жюри":a.finalist?"Проходит":"Не проходит"];for(let v of values){let td=document.createElement("td");td.textContent=String(v??"");tr.append(td)}box.append(tr)}}catch(e){msg(e.message)}}
 id("district").onchange=refresh;id("refresh").onclick=refresh;
 async function command(action,payload,question){if(question&&!confirm(question))return;try{let v=await call(action,Object.assign({district:district()},payload),true);msg("Команда выполнена"+(v.ranked!==undefined?": участников в рейтинге "+v.ranked:""));await refresh()}catch(e){msg("Ошибка: "+e.message)}}
 id("new").onclick=()=>command("admin_new",{demo:id("demo").checked},"Начать НОВУЮ игру? Прежняя сессия уйдёт в архив.");
-id("open").onclick=()=>command("admin_open",{questionId:id("question").value,seconds:Number(id("seconds").value)});
-id("pause").onclick=()=>command("admin_pause",{});id("reveal").onclick=()=>command("admin_reveal",{});
+id("start").onclick=()=>command("admin_start",{},"Запустить автоматически все 55 вопросов? После старта вопросы меняются без участия ведущего.");
+id("pause").onclick=()=>command("admin_pause",{});
+id("resume").onclick=()=>command("admin_resume",{});
 id("finish").onclick=()=>command("admin_finish",{},"Завершить Quiz и зафиксировать итоговые баллы?");
 id("download").onclick=()=>{if(!rankings.length)return msg("Сначала завершите игру");const rows=[["Округ","Место","ФИО","Номинация","Портфолио","Видеовизитка","Б1","Б2","Б3","Б4","Б5","Quiz","Итого","II тур"]];for(let a of rankings)rows.push([district(),a.ranking_position,a.name,a.nomination,...["portfolio","video","block_1","block_2","block_3","block_4","block_5","quiz_total","grand_total"].map(k=>Number(a[k]||0)),a.needs_jury_review?"Решение жюри":a.finalist?"Проходит":"Не проходит"]);let blob=makeXlsx(rows),a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="StudRussia_"+district()+"_results.xlsx";a.click();setTimeout(()=>URL.revokeObjectURL(a.href),2000)};
 
@@ -70,5 +76,5 @@ return pack([
 ["xl/worksheets/sheet1.xml",xml]])}
 
 if(token)show();
-setInterval(()=>{if(token)call("state").then(s=>id("state").textContent=s.phase+" · "+(s.isDemo?"ТЕСТ":"КОНКУРС")).catch(()=>{})},5000);
+setInterval(()=>{if(token)call("state").then(s=>{const p={lobby:"Ожидание",question:"Вопрос",answer:"Ответы",paused:"Пауза",finished:"Завершён"};id("state").textContent=(p[s.phase]||s.phase)+" · "+(s.isDemo?"ТЕСТ":"КОНКУРС")+(s.ordinal?" · "+s.ordinal+"/55":"");if(s.phase==="finished"&&lastPhase!=="finished")getRanks();lastPhase=s.phase}).catch(()=>{})},5000);
 </script><section class="box"><p class="detail">СтудRussia · Конкурс 2026 · Использование мобильных устройств. Результаты доступны только администрации.</p></section></main></body></html>
