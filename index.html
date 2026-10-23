@@ -19,66 +19,186 @@ table{border-collapse:collapse;font-size:12px;min-width:920px;width:100%}th,td{b
 <label>Федеральный округ</label><select id="district"><option value="">Выберите округ</option><option value="СКФО">СКФО</option><option value="ЮФО">ЮФО</option></select>
 <label>Номинация</label><select id="nomination" disabled></select>
 <label>Участник (как в списке конкурса)</label><select id="person" disabled></select>
-<button class="primary" id="join">Присоединиться к Quiz</button><p id="rmsg" class="status"></p><p class="detail">Один участник — одна регистрация в текущей сессии. При новом запуске можно войти заново.</p></section>
-<section class="box hidden" id="waiting"><h2 id="waitTitle">Вы зарегистрированы</h2><p id="who"></p><p id="waitText">Ожидайте запуска вопроса ведущим.</p></section>
-<section class="box hidden" id="questionBox"><div class="row" style="justify-content:space-between"><div><b class="red" id="block"></b><h2 id="qnum">Вопрос</h2></div><div class="timer" id="timer">—</div></div><p class="detail">Выберите вариант. Вопрос смотрите на большом экране.</p><div class="choices" id="choices"></div><button class="primary" id="send" disabled>Отправить ответ</button><p class="status" id="amsg"></p></section>
+<button class="primary" id="join">Присоединиться к Quiz</button> <button class="outline hidden" id="cancelEdit" type="button">Отмена изменений</button><p id="rmsg" class="status"></p><p class="detail">Один участник — одна регистрация в текущей сессии. При новом запуске можно войти заново.</p></section>
+<section class="box hidden" id="waiting"><h2 id="waitTitle">Вы зарегистрированы</h2><p id="who"></p><p id="waitText">Ожидайте запуска вопроса ведущим.</p><button class="outline" id="editWaiting" type="button">← Изменить округ, номинацию или имя</button><p class="detail">Исправить регистрацию можно до отправки первого ответа.</p></section>
+<section class="box hidden" id="questionBox"><div class="row" style="justify-content:space-between"><div><b class="red" id="block"></b><h2 id="qnum">Вопрос</h2></div><div class="timer" id="timer">—</div></div><p class="detail">Выберите вариант. Вопрос смотрите на большом экране.</p><div class="choices" id="choices"></div><button class="primary" id="send" disabled>Отправить ответ</button> <button class="outline" id="editQuestion" type="button">← Исправить регистрацию</button><p class="status" id="amsg"></p></section>
 <section class="box hidden" id="finished"><h2>Спасибо за участие!</h2><p>Quiz завершён. Результаты объявят организаторы.</p></section>
 <script>
 const apiRoot="https://lszvfdsiftmonctigfwj.supabase.co/functions/v1/quiz-api";
 const el=id=>document.getElementById(id);
 const show=id=>["registration","waiting","questionBox","finished"].forEach(x=>el(x).classList.toggle("hidden",x!==id));
-async function call(action,body,dist){let u=new URL(apiRoot);u.searchParams.set("action",action);if(dist)u.searchParams.set("district",dist);let r=await fetch(u,{method:body?"POST":"GET",headers:{"Content-Type":"application/json"},body:body?JSON.stringify(body):undefined,cache:"no-store"});const v=await r.json();if(!r.ok)throw Error(v.error||"Ошибка связи");return v;}
-const letters=["А","Б","В","Г"];let noms=[],roster=[],identity=null,state=null,qid="",selected=-1,sent=false,busy=false;
-let district=el("district"),nom=el("nomination"),person=el("person");
-let urlDistrict=new URLSearchParams(location.search).get("district");if(["ЮФО","СКФО"].includes(urlDistrict))district.value=urlDistrict;
+async function call(action,body,dist){
+ const u=new URL(apiRoot);u.searchParams.set("action",action);if(dist)u.searchParams.set("district",dist);
+ const r=await fetch(u,{method:body?"POST":"GET",headers:{"Content-Type":"application/json"},body:body?JSON.stringify(body):undefined,cache:"no-store"});
+ const v=await r.json();if(!r.ok)throw Error(v.error||"Ошибка связи");return v;
+}
+const letters=["А","Б","В","Г"];
+let noms=[],roster=[],identity=null,state=null,qid="",selected=-1,sent=false,busy=false,editing=false,skew=0,nextPollHandle=null;
+const district=el("district"),nom=el("nomination"),person=el("person");
+const preset=new URLSearchParams(location.search).get("district");if(["СКФО","ЮФО"].includes(preset))district.value=preset;
 const store=d=>"studrussia-quiz-"+d;
-function options(target,items,placeholder){target.replaceChildren(new Option(placeholder,""));items.forEach(x=>target.add(new Option(x[1],String(x[0]))));}
+const friendly=err=>({
+NAME_ALREADY_SELECTED:"Этот участник уже зарегистрирован. Проверьте ФИО.",
+ALREADY_ANSWERED:"Вы уже отправили ответ. Для исправления данных обратитесь к администратору.",
+REGISTRATION_CLOSED:"Регистрация на выбранную игру закрыта.",
+TARGET_CLOSED:"Игра выбранного округа уже закончилась.",
+NOT_JOINED:"Не найдена ваша прежняя регистрация. Обратитесь к администратору.",
+PLAYER_NOT_FOUND:"Участник не найден в указанном округе.",
+INVALID_REQUEST:"Выберите правильный округ, номинацию и имя.",
+NO_SESSION:"В выбранном округе пока нет игры.",
+SERVER_ERROR:"Ошибка сервера. Повторите действие."
+}[err]||err||"Не удалось сохранить изменения");
+function options(target,items,placeholder){
+ target.replaceChildren(new Option(placeholder,""));
+ for(const [value,title] of items)target.add(new Option(title,String(value)));
+}
+function markIdentity(){
+ if(!identity)return;
+ const display=el("who");
+ display.textContent="Вы зарегистрированы как: "+identity.name+" · "+identity.district;
+}
 async function load(){
-let d=district.value;nom.disabled=true;person.disabled=true;roster=[];if(!d)return;
-try{
-let r=await Promise.all([call("nominations"),call("roster",null,d)]);noms=r[0].nominations;roster=r[1].roster;
-options(nom,noms.map(n=>[n.id,n.title]),"Выберите номинацию");nom.disabled=false;
-let old=localStorage.getItem(store(d));identity=old?JSON.parse(old):null;if(identity&&identity.district===d){el("who").textContent=identity.name;show("waiting");}
-}catch(e){el("rmsg").textContent=e.message;}}
-nom.onchange=()=>{options(person,roster.filter(x=>String(x.nomination_id)===nom.value).map(x=>[x.id,x.full_name]),"Выберите участника");person.disabled=!nom.value};
-district.onchange=()=>{clearTimeout(nextPollHandle);nextPollHandle=null;identity=null;state=null;qid="";show("registration");load();poll()};
+ const d=district.value;nom.disabled=true;person.disabled=true;roster=[];
+ options(nom,[],"Сначала выберите округ");options(person,[],"Сначала выберите номинацию");
+ if(!d)return;
+ try{
+ const [a,b]=await Promise.all([call("nominations"),call("roster",null,d)]);
+ if(d!==district.value)return;
+ noms=a.nominations||[];roster=b.roster||[];
+ options(nom,noms.map(n=>[n.id,n.title]),"Выберите номинацию");nom.disabled=false;
+ if(!editing){
+ const raw=localStorage.getItem(store(d));identity=raw?JSON.parse(raw):null;
+ if(identity?.district===d){markIdentity();show("waiting");}else identity=null;
+ }else if(identity?.district===d){
+ const old=roster.find(x=>x.id===identity.playerId)||roster.find(x=>x.full_name===identity.name);
+ if(old){nom.value=String(old.nomination_id);nom.onchange();person.value=old.id;}
+ }
+ }catch(e){el("rmsg").textContent=friendly(e.message);}
+}
+nom.onchange=()=>{
+ options(person,roster.filter(x=>String(x.nomination_id)===nom.value).map(x=>[x.id,x.full_name]),"Выберите участника");
+ person.disabled=!nom.value;
+};
+district.onchange=()=>{
+ clearTimeout(nextPollHandle);nextPollHandle=null;state=null;qid="";
+ if(!editing)identity=null;
+ show("registration");el("rmsg").textContent="";load();if(!editing)poll();
+};
+function leaveEdit(){
+ editing=false;el("join").textContent="Присоединиться к Quiz";el("cancelEdit").classList.add("hidden");
+ district.value=identity?.district||preset||"";el("rmsg").textContent="";
+ show(identity?"waiting":"registration");if(identity)markIdentity();
+ clearTimeout(nextPollHandle);nextPollHandle=null;load();poll();
+}
+function beginEdit(){
+ if(!identity)return;
+ if(identity.hasAnswered){el("amsg").textContent="После отправки ответа исправление возможно только через администратора.";return;}
+ if(state?.phase==="finished"){el("amsg").textContent="Игра завершена. Обратитесь к администратору.";return;}
+ editing=true;clearTimeout(nextPollHandle);nextPollHandle=null;
+ el("join").textContent="Сохранить новую регистрацию";
+ el("cancelEdit").classList.remove("hidden");
+ el("rmsg").textContent="Выберите нужный округ, номинацию и имя. Пока изменения не сохранены, старая регистрация остаётся действующей.";
+ district.value=identity.district;show("registration");load();
+}
+el("editWaiting").onclick=beginEdit;
+el("editQuestion").onclick=beginEdit;
+el("cancelEdit").onclick=leaveEdit;
 el("join").onclick=async()=>{
-let p=roster.find(x=>x.id===person.value),d=district.value;if(!p)return el("rmsg").textContent="Выберите округ, номинацию и ФИО.";
-el("join").disabled=true;try{let a=new Uint8Array(32);crypto.getRandomValues(a);const token=Array.from(a,x=>x.toString(16).padStart(2,"0")).join("");
-let r=await call("join",{district:d,playerId:p.id,token});
-identity={district:d,name:r.name,sessionId:r.sessionId,token};localStorage.setItem(store(d),JSON.stringify(identity));el("who").textContent=r.name;show("waiting");el("rmsg").textContent="";poll();
-}catch(e){el("rmsg").textContent=e.message}finally{el("join").disabled=false}};
-function paint(q){qid=q.id;selected=-1;sent=false;el("block").textContent=q.block===0?"РАЗМИНКА · без баллов":"БЛОК "+q.block+" · 0,5 балла";el("qnum").textContent="Вопрос "+q.number+" · 15 секунд на ответ";
-const box=el("choices");box.replaceChildren();(q.choices||[]).forEach((x,i)=>{const btn=document.createElement("button");btn.className="choice";const b=document.createElement("b");b.textContent=letters[i];const span=document.createElement("span");span.textContent=x;btn.append(b,span);btn.onclick=()=>{if(sent||remaining()<=0)return;selected=i;[...box.children].forEach((c,j)=>c.classList.toggle("selected",j===i));el("send").disabled=false;};box.append(btn)});
-el("send").disabled=true;el("amsg").textContent=""}
-let skew=0,nextPollHandle=null;
-function remaining(){return state&&state.deadline?Math.max(0,Math.ceil((new Date(state.deadline).getTime()-(Date.now()+skew))/1000)):0}
-async function poll(){let d=district.value;if(!d||busy)return;busy=true;try{
-state=await call("state",null,d);if(state.serverTime)skew=new Date(state.serverTime).getTime()-Date.now();
-if(identity&&state.sessionId!==identity.sessionId){localStorage.removeItem(store(d));identity=null;qid="";show("registration");el("rmsg").textContent="Новая игра. Выберите своё имя ещё раз.";return;}
-if(!identity)return;
-if(state.phase==="finished"){show("finished");return;}
-if(state.phase==="answer"&&state.question){
-if(qid!==state.question.id)paint(state.question);
-show("questionBox");el("timer").textContent=remaining();el("send").disabled=sent||selected<0||remaining()<=0;return;}
-show("waiting");
-if(state.phase==="question"&&state.question){
-const q=state.question;el("waitTitle").textContent="Блок "+q.block+" · вопрос "+q.number;
-el("waitText").textContent="Смотрите вопрос и изображение на общем экране. Варианты ответов откроются через "+remaining()+" сек.";
-}else if(state.phase==="paused"){el("waitTitle").textContent="Пауза";el("waitText").textContent="Ожидайте возобновления Quiz.";}
-else{el("waitTitle").textContent="Вы зарегистрированы";el("waitText").textContent="Ожидайте начала игры на общем экране.";}
-}catch(e){if(identity)el("waitText").textContent="Восстанавливаем соединение…";}finally{
+ const p=roster.find(x=>x.id===person.value),d=district.value;
+ if(!p||!d||String(p.nomination_id)!==nom.value){el("rmsg").textContent="Выберите округ, номинацию и участника.";return;}
+ const category=noms.find(x=>String(x.id)===nom.value)?.title||"";
+ if(!confirm("Подтвердите регистрацию:\nОкруг: "+d+"\nНоминация: "+category+"\nУчастник: "+p.full_name))return;
+ el("join").disabled=true;
+ try{
+ let result,token;
+ if(editing&&identity){
+ token=identity.token;
+ result=await call("change_registration",{district:d,oldDistrict:identity.district,playerId:p.id,token});
+ if(!["UPDATED","UNCHANGED"].includes(result.status))throw Error(result.status||"SERVER_ERROR");
+ localStorage.removeItem(store(identity.district));
+ }else{
+ const a=new Uint8Array(32);crypto.getRandomValues(a);
+ token=Array.from(a,x=>x.toString(16).padStart(2,"0")).join("");
+ result=await call("join",{district:d,playerId:p.id,token});
+ }
+ identity={district:d,name:result.name,sessionId:result.sessionId,token,playerId:p.id,nominationId:p.nomination_id,hasAnswered:false};
+ localStorage.setItem(store(d),JSON.stringify(identity));markIdentity();
+ editing=false;el("join").textContent="Присоединиться к Quiz";el("cancelEdit").classList.add("hidden");
+ el("rmsg").textContent="";state=null;qid="";show("waiting");
+ clearTimeout(nextPollHandle);nextPollHandle=null;poll();
+ }catch(e){el("rmsg").textContent=friendly(e.message);}
+ finally{el("join").disabled=false;}
+};
+function paint(q){
+ qid=q.id;selected=-1;sent=false;
+ el("block").textContent=q.block===0?"РАЗМИНКА · без баллов":"БЛОК "+q.block+" · 0,5 балла";
+ el("qnum").textContent="Вопрос "+q.number+" · 15 секунд на ответ";
+ const box=el("choices");box.replaceChildren();
+ (q.choices||[]).forEach((x,i)=>{
+ const btn=document.createElement("button");btn.className="choice";const label=document.createElement("b");label.textContent=letters[i];
+ const content=document.createElement("span");content.textContent=x;btn.append(label,content);
+ btn.onclick=()=>{if(sent||remaining()<=0)return;selected=i;[...box.children].forEach((v,j)=>v.classList.toggle("selected",j===i));el("send").disabled=false;};
+ box.append(btn);
+ });el("send").disabled=true;el("amsg").textContent="";
+}
+function remaining(){
+ return state?.deadline?Math.max(0,Math.ceil((new Date(state.deadline).getTime()-(Date.now()+skew))/1000)):0;
+}
+async function poll(){
+ const d=district.value;if(!d||editing||busy)return;
+ busy=true;
+ try{
+ const incoming=await call("state",null,d);
+ if(editing||d!==district.value)return;
+ state=incoming;if(state.serverTime)skew=new Date(state.serverTime).getTime()-Date.now();
+ if(identity&&state.sessionId!==identity.sessionId){
+ localStorage.removeItem(store(identity.district));identity=null;qid="";show("registration");
+ el("rmsg").textContent="Открыта новая игра. Выберите данные и зарегистрируйтесь снова.";return;
+ }
+ if(!identity)return;
+ if(state.phase==="finished"){show("finished");return;}
+ if(state.phase==="answer"&&state.question){
+ if(qid!==state.question.id)paint(state.question);
+ show("questionBox");el("timer").textContent=remaining();
+ el("send").disabled=sent||selected<0||remaining()<=0;
+ el("editQuestion").classList.toggle("hidden",sent||!!identity.hasAnswered);
+ return;
+ }
+ show("waiting");markIdentity();
+ el("editWaiting").classList.toggle("hidden",!!identity.hasAnswered);
+ if(state.phase==="question"&&state.question){
+ el("waitTitle").textContent="Блок "+state.question.block+" · вопрос "+state.question.number;
+ el("waitText").textContent="Смотрите вопрос на общем экране. Варианты откроются через "+remaining()+" сек.";
+ }else if(state.phase==="paused"){
+ el("waitTitle").textContent="Пауза";el("waitText").textContent="Ожидайте возобновления Quiz.";
+ }else{
+ el("waitTitle").textContent="Вы зарегистрированы";el("waitText").textContent="Ожидайте начала игры на общем экране.";
+ }
+ }catch(e){if(identity)el("waitText").textContent="Восстанавливаем соединение…";}
+ finally{
  busy=false;
- const phase=state?.phase;
- let delay=phase==="lobby"||phase==="paused"||phase==="not_started"?3500:
- phase==="question"||phase==="answer"?Math.max(600,remaining()*1000+220):
- phase==="finished"?15000:4000;
- clearTimeout(nextPollHandle);
- nextPollHandle=setTimeout(poll,delay);
- }}
-el("send").onclick=async()=>{if(!identity||selected<0||sent||remaining()<=0)return;el("send").disabled=true;try{const r=await call("answer",{district:identity.district,token:identity.token,questionId:qid,choiceIndex:selected});sent=true;el("amsg").textContent=r.status==="SAVED"?"Ответ сохранён":"Ответ уже был отправлен"}catch(e){el("amsg").textContent=e.message==="CLOSED"?"Время ответа истекло":e.message;el("send").disabled=true;}};
+ if(!editing){
+ let delay=state?.phase==="lobby"||state?.phase==="paused"||state?.phase==="not_started"?3500:
+ state?.phase==="question"||state?.phase==="answer"?Math.max(600,remaining()*1000+220):
+ state?.phase==="finished"?15000:4000;
+ clearTimeout(nextPollHandle);nextPollHandle=setTimeout(poll,delay);
+ }
+ }
+}
+el("send").onclick=async()=>{
+ if(!identity||selected<0||sent||remaining()<=0)return;
+ el("send").disabled=true;
+ try{
+ const r=await call("answer",{district:identity.district,token:identity.token,questionId:qid,choiceIndex:selected});
+ sent=true;identity.hasAnswered=true;localStorage.setItem(store(identity.district),JSON.stringify(identity));
+ el("editQuestion").classList.add("hidden");
+ el("amsg").textContent=r.status==="SAVED"?"Ответ сохранён":"Ответ уже был отправлен";
+ }catch(e){el("amsg").textContent=e.message==="CLOSED"?"Время ответа истекло":friendly(e.message);el("send").disabled=true;}
+};
 load();poll();
 document.addEventListener("visibilitychange",()=>{if(!document.hidden)poll();});
-setInterval(()=>{if(state?.phase==="answer"){el("timer").textContent=remaining();if(remaining()===0)el("send").disabled=true;}
-if(state?.phase==="question"&&identity)el("waitText").textContent="Смотрите вопрос на общем экране. Варианты ответов откроются через "+remaining()+" сек.";},350);
+setInterval(()=>{
+ if(state?.phase==="answer"){el("timer").textContent=remaining();if(remaining()===0)el("send").disabled=true;}
+ if(state?.phase==="question"&&identity&&!editing)el("waitText").textContent="Смотрите вопрос на общем экране. Варианты ответа откроются через "+remaining()+" сек.";
+},350);
 </script><section class="box"><p class="detail">СтудRussia · Конкурс 2026 · Использование мобильных устройств. Результаты доступны только администрации.</p></section></main></body></html>
