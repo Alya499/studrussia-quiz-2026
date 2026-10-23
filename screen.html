@@ -16,19 +16,48 @@ table{border-collapse:collapse;font-size:12px;min-width:920px;width:100%}th,td{b
 @media(max-width:720px){main{width:95vw;margin:15px auto}header{padding:14px}.grid{grid-template-columns:1fr}.box{padding:18px}.hero{padding:20px}.choices{grid-template-columns:1fr}.choice{min-height:73px}.screen .choice{font-size:17px}}
 </style></head><body><header><b>Студ<span>Russia</span><small>КОНКУРС · 2026</small></b><span class="pill">Первый тур</span></header><main><section class="hero"><span class="pill" id="disttag">СКФО</span><h1>Quiz СтудRussia · Экран ведущего</h1><p>Вопрос и изображение выводятся только здесь. Ответы участники отмечают на телефонах.</p></section>
 <section class="box screen"><div class="row" style="justify-content:space-between"><div><span class="red" id="block">ОЖИДАНИЕ</span><h2 id="num">До начала игры</h2></div><div class="timer" id="timer">—</div></div>
-<p id="fact"></p><div id="qtext">Подготовьтесь к началу Quiz!</div>
+<div id="qtext">Подготовьтесь к началу Quiz!</div>
 <img id="photo" alt="Иллюстрация к вопросу" class="hidden">
-<p class="detail" id="imagewarn"></p><div id="choices" class="choices"></div><p class="status" id="notice"></p></section>
+<p class="detail" id="imagewarn"></p><p class="status" id="notice"></p></section>
 <script>
 const apiRoot="https://lszvfdsiftmonctigfwj.supabase.co/functions/v1/quiz-api";
-const id=x=>document.getElementById(x);const d=new URLSearchParams(location.search).get("district")==="ЮФО"?"ЮФО":"СКФО";id("disttag").textContent=d;let state=null;
-async function tick(){try{let u=new URL(apiRoot);u.searchParams.set("action","screen_state");u.searchParams.set("district",d);let r=await fetch(u,{cache:"no-store"});state=await r.json();
-if(!state.question){id("num").textContent=state.phase==="finished"?"Quiz завершён":state.phase==="paused"?"Перерыв между вопросами":"Ожидание начала игры";id("qtext").textContent="";id("fact").textContent="";id("photo").classList.add("hidden");id("choices").replaceChildren();id("timer").textContent="—";return;}
-let q=state.question;id("block").textContent=q.block===0?"Разминка · без баллов":"Блок "+q.block+" · 0,5 балла";id("num").textContent="Вопрос "+q.number;id("fact").textContent=q.fact||"";id("qtext").textContent=q.question;
-id("imagewarn").textContent="";id("photo").classList.remove("hidden");id("photo").src="https://lszvfdsiftmonctigfwj.supabase.co/functions/v1/quiz-media?asset="+encodeURIComponent(q.id);id("photo").onerror=()=>{id("photo").classList.add("hidden");id("imagewarn").textContent="Иллюстрация пока недоступна";};id("photo").onload=()=>{id("imagewarn").textContent="";};
-let box=id("choices");box.replaceChildren();q.choices.forEach((a,i)=>{let e=document.createElement("div");e.className="choice"+(state.phase==="reveal"&&i===state.correctChoice?" correct":"");let b=document.createElement("b");b.textContent=["А","Б","В","Г"][i];let t=document.createElement("span");t.textContent=a;e.append(b,t);box.append(e)});
-id("timer").textContent=state.phase==="reveal"?"✓":remaining();id("notice").textContent=state.phase==="reveal"?"Правильный ответ выделен зелёным":"Участники отвечают с телефонов.";
-}catch(e){id("notice").textContent="Проверяем связь с сервером...";}}
-function remaining(){return state?.deadline?Math.max(0,Math.ceil((new Date(state.deadline).getTime()-Date.now())/1000)):"—";}
-tick();setInterval(tick,2500);setInterval(()=>{if(state?.phase==="running")id("timer").textContent=remaining()},350);
+const mediaRoot="https://lszvfdsiftmonctigfwj.supabase.co/functions/v1/quiz-media";
+const id=x=>document.getElementById(x);
+const d=new URLSearchParams(location.search).get("district")==="ЮФО"?"ЮФО":"СКФО";
+id("disttag").textContent=d;
+let state=null,shown="",skew=0,busy=false;
+const remaining=()=>state?.deadline?Math.max(0,Math.ceil((new Date(state.deadline).getTime()-(Date.now()+skew))/1000)):"—";
+async function tick(){
+ if(busy)return;busy=true;
+ try{
+ const u=new URL(apiRoot);u.searchParams.set("action","screen_state");u.searchParams.set("district",d);
+ const resp=await fetch(u,{cache:"no-store"});if(!resp.ok)throw Error("API error "+resp.status);
+ state=await resp.json();
+ if(state.serverTime)skew=new Date(state.serverTime).getTime()-Date.now();
+ if(!state.question){
+ id("num").textContent=state.phase==="finished"?"Quiz завершён":state.phase==="paused"?"Игра приостановлена":"Ожидание начала игры";
+ id("qtext").textContent=state.phase==="finished"?"Спасибо всем участникам!":"Подготовьтесь к началу Quiz!";
+ id("block").textContent=state.phase==="finished"?"ПЕРВЫЙ ТУР ЗАВЕРШЁН":"ОЖИДАНИЕ";
+ id("photo").classList.add("hidden");id("imagewarn").textContent="";id("timer").textContent="—";id("notice").textContent="";
+ shown="";return;
+ }
+ const q=state.question;
+ id("block").textContent=q.block===0?"РАЗМИНКА · без баллов":"БЛОК "+q.block+" · 0,5 балла";
+ id("num").textContent="Вопрос "+q.number+" из 10 · "+state.ordinal+" из "+state.total;
+ id("qtext").textContent=q.question;
+ if(shown!==q.id){
+ shown=q.id;const img=id("photo");img.classList.add("hidden");img.removeAttribute("src");id("imagewarn").textContent="";
+ if(q.image){
+ img.onload=()=>{if(shown===q.id)img.classList.remove("hidden")};
+ img.onerror=()=>{img.classList.add("hidden");img.removeAttribute("src")};
+ img.src=mediaRoot+"?asset="+encodeURIComponent(q.image);
+ }
+ }
+ id("notice").textContent=state.phase==="answer"?"15 секунд для ответа на телефонах":"60 секунд: читаем вопрос на экране";
+ id("timer").textContent=remaining();
+ }catch(e){id("notice").textContent="Проверяем соединение с сервером…";}
+ finally{busy=false}
+}
+tick();setInterval(tick,1600);
+setInterval(()=>{if(state&&(state.phase==="question"||state.phase==="answer"))id("timer").textContent=remaining()},250);
 </script><section class="box"><p class="detail">СтудRussia · Конкурс 2026 · Использование мобильных устройств. Результаты доступны только администрации.</p></section></main></body></html>
