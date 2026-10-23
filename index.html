@@ -41,12 +41,12 @@ options(nom,noms.map(n=>[n.id,n.title]),"Выберите номинацию");n
 let old=localStorage.getItem(store(d));identity=old?JSON.parse(old):null;if(identity&&identity.district===d){el("who").textContent=identity.name;show("waiting");}
 }catch(e){el("rmsg").textContent=e.message;}}
 nom.onchange=()=>{options(person,roster.filter(x=>String(x.nomination_id)===nom.value).map(x=>[x.id,x.full_name]),"Выберите участника");person.disabled=!nom.value};
-district.onchange=()=>{identity=null;show("registration");load()};
+district.onchange=()=>{clearTimeout(nextPollHandle);nextPollHandle=null;identity=null;state=null;qid="";show("registration");load();poll()};
 el("join").onclick=async()=>{
 let p=roster.find(x=>x.id===person.value),d=district.value;if(!p)return el("rmsg").textContent="Выберите округ, номинацию и ФИО.";
 el("join").disabled=true;try{let a=new Uint8Array(32);crypto.getRandomValues(a);const token=Array.from(a,x=>x.toString(16).padStart(2,"0")).join("");
 let r=await call("join",{district:d,playerId:p.id,token});
-identity={district:d,name:r.name,sessionId:r.sessionId,token};localStorage.setItem(store(d),JSON.stringify(identity));el("who").textContent=r.name;show("waiting");el("rmsg").textContent="";
+identity={district:d,name:r.name,sessionId:r.sessionId,token};localStorage.setItem(store(d),JSON.stringify(identity));el("who").textContent=r.name;show("waiting");el("rmsg").textContent="";poll();
 }catch(e){el("rmsg").textContent=e.message}finally{el("join").disabled=false}};
 function paint(q){qid=q.id;selected=-1;sent=false;el("block").textContent=q.block===0?"РАЗМИНКА · без баллов":"БЛОК "+q.block+" · 0,5 балла";el("qnum").textContent="Вопрос "+q.number+" · 15 секунд на ответ";
 const box=el("choices");box.replaceChildren();(q.choices||[]).forEach((x,i)=>{const btn=document.createElement("button");btn.className="choice";const b=document.createElement("b");b.textContent=letters[i];const span=document.createElement("span");span.textContent=x;btn.append(b,span);btn.onclick=()=>{if(sent||remaining()<=0)return;selected=i;[...box.children].forEach((c,j)=>c.classList.toggle("selected",j===i));el("send").disabled=false;};box.append(btn)});
