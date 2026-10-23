@@ -18,7 +18,7 @@ table{border-collapse:collapse;font-size:12px;min-width:920px;width:100%}th,td{b
 <section class="box" id="registration"><h2>Регистрация участника</h2>
 <label>Федеральный округ</label><select id="district"><option value="">Выберите округ</option><option value="СКФО">СКФО</option><option value="ЮФО">ЮФО</option></select>
 <label>Номинация</label><select id="nomination" disabled></select>
-<label>Фамилия, имя, отчество</label><select id="person" disabled></select>
+<label>Участник (как в списке конкурса)</label><select id="person" disabled></select>
 <button class="primary" id="join">Присоединиться к Quiz</button><p id="rmsg" class="status"></p><p class="detail">Один участник — одна регистрация в текущей сессии. При новом запуске можно войти заново.</p></section>
 <section class="box hidden" id="waiting"><h2 id="waitTitle">Вы зарегистрированы</h2><p id="who"></p><p id="waitText">Ожидайте запуска вопроса ведущим.</p></section>
 <section class="box hidden" id="questionBox"><div class="row" style="justify-content:space-between"><div><b class="red" id="block"></b><h2 id="qnum">Вопрос</h2></div><div class="timer" id="timer">—</div></div><p class="detail">Выберите вариант. Вопрос смотрите на большом экране.</p><div class="choices" id="choices"></div><button class="primary" id="send" disabled>Отправить ответ</button><p class="status" id="amsg"></p></section>
@@ -40,7 +40,7 @@ let r=await Promise.all([call("nominations"),call("roster",null,d)]);noms=r[0].n
 options(nom,noms.map(n=>[n.id,n.title]),"Выберите номинацию");nom.disabled=false;
 let old=localStorage.getItem(store(d));identity=old?JSON.parse(old):null;if(identity&&identity.district===d){el("who").textContent=identity.name;show("waiting");}
 }catch(e){el("rmsg").textContent=e.message;}}
-nom.onchange=()=>{options(person,roster.filter(x=>String(x.nomination_id)===nom.value).map(x=>[x.id,x.full_name]),"Выберите ФИО");person.disabled=!nom.value};
+nom.onchange=()=>{options(person,roster.filter(x=>String(x.nomination_id)===nom.value).map(x=>[x.id,x.full_name]),"Выберите участника");person.disabled=!nom.value};
 district.onchange=()=>{identity=null;show("registration");load()};
 el("join").onclick=async()=>{
 let p=roster.find(x=>x.id===person.value),d=district.value;if(!p)return el("rmsg").textContent="Выберите округ, номинацию и ФИО.";
