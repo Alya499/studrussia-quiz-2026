@@ -11,11 +11,12 @@ label{display:block;font-weight:650;margin-top:6px}button{padding:13px 16px;bord
 .choices{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:17px 0}.choice{padding:18px;text-align:left;min-height:90px;border:1px solid #d7dbe1;border-radius:14px;background:#fff;display:flex;gap:12px;align-items:center}.choice b{width:36px;height:36px;border-radius:9px;flex-shrink:0;background:#fae8e9;color:#bd162a;display:grid;place-items:center}.choice.selected{background:#fff0f1;border-color:#bd162a;box-shadow:0 0 0 2px #eaaeb7}.choice.correct{border-color:#178049;background:#e5f6eb}
 .timer{display:inline-block;font-size:30px;border:2px solid #c52231;border-radius:12px;padding:9px 16px;color:#bd1b2d;font-weight:800}
 table{border-collapse:collapse;font-size:12px;min-width:920px;width:100%}th,td{border-bottom:1px solid #e5e7eb;padding:10px 8px;text-align:left}th{background:#f3f4f6;position:sticky;top:0}td{white-space:nowrap}.table{overflow-x:auto;max-height:540px}
-.screen .box{min-height:65vh}.screen .choices{gap:17px}.screen .choice{font-size:23px}.screen #qtext{font-size:32px;color:#20242b;font-weight:760;line-height:1.3}.screen #photo{display:block;max-height:34vh;max-width:100%;object-fit:contain;margin:10px auto}
+.screen .box{min-height:65vh}.screen .story{background:#f7f8fa;border-left:4px solid #c52231;padding:13px 17px;border-radius:8px;margin:16px 0 18px}.screen .story-label{color:#b51b2d;font-weight:800;font-size:12px;letter-spacing:.8px}.screen #fact{font-size:clamp(16px,1.6vw,21px);line-height:1.4;color:#364152;margin:8px 0 2px;white-space:pre-line}.screen .story.long #fact{font-size:clamp(15px,1.38vw,18px);line-height:1.35}.screen .story.very-long #fact{font-size:clamp(14px,1.22vw,17px);line-height:1.32}.screen:has(.story:not(.hidden)) #photo{max-height:23vh}.screen .choices{gap:17px}.screen .choice{font-size:23px}.screen #qtext{font-size:32px;color:#20242b;font-weight:760;line-height:1.3}.screen #photo{display:block;max-height:34vh;max-width:100%;object-fit:contain;margin:10px auto}
 .detail{font-size:14px;color:#6e7680}.ok{color:#157748}.big{font-size:28px;font-weight:750;color:#c52231}
 @media(max-width:720px){main{width:95vw;margin:15px auto}header{padding:14px}.grid{grid-template-columns:1fr}.box{padding:18px}.hero{padding:20px}.choices{grid-template-columns:1fr}.choice{min-height:73px}.screen .choice{font-size:17px}}
-</style></head><body><header><b>Студ<span>Russia</span><small>КОНКУРС · 2026</small></b><span class="pill">Первый тур</span></header><main><section class="hero"><span class="pill" id="disttag">СКФО</span><h1>Quiz СтудRussia · Экран ведущего</h1><p>Вопрос и изображение выводятся только здесь. Ответы участники отмечают на телефонах.</p></section>
+</style></head><body><header><b>Студ<span>Russia</span><small>КОНКУРС · 2026</small></b><span class="pill">Первый тур</span></header><main><section class="hero"><span class="pill" id="disttag">СКФО</span><h1>Quiz СтудRussia · Экран ведущего</h1><p>Интересный факт, вопрос и изображение выводятся здесь. Ответы участники отмечают на телефонах.</p></section>
 <section class="box screen"><div class="row" style="justify-content:space-between"><div><span class="red" id="block">ОЖИДАНИЕ</span><h2 id="num">До начала игры</h2></div><div class="timer" id="timer">—</div></div>
+<section id="story" class="story hidden"><div class="story-label">ИНТЕРЕСНЫЙ ФАКТ</div><p id="fact"></p></section>
 <div id="qtext">Подготовьтесь к началу Quiz!</div>
 <img id="photo" alt="Иллюстрация к вопросу" class="hidden">
 <p class="detail" id="imagewarn"></p><p class="status" id="notice"></p></section>
@@ -38,13 +39,14 @@ async function tick(){
  id("num").textContent=state.phase==="finished"?"Quiz завершён":state.phase==="paused"?"Игра приостановлена":"Ожидание начала игры";
  id("qtext").textContent=state.phase==="finished"?"Спасибо всем участникам!":"Подготовьтесь к началу Quiz!";
  id("block").textContent=state.phase==="finished"?"ПЕРВЫЙ ТУР ЗАВЕРШЁН":"ОЖИДАНИЕ";
- id("photo").classList.add("hidden");id("imagewarn").textContent="";id("timer").textContent="—";id("notice").textContent="";
+ id("photo").classList.add("hidden");id("story").classList.add("hidden");id("fact").textContent="";id("imagewarn").textContent="";id("timer").textContent="—";id("notice").textContent="";
  shown="";return;
  }
  const q=state.question;
  id("block").textContent=q.block===0?"РАЗМИНКА · без баллов":"БЛОК "+q.block+" · 0,5 балла";
  id("num").textContent="Вопрос "+q.number+" из 10 · "+state.ordinal+" из "+state.total;
  id("qtext").textContent=q.question;
+ const story=id("story");const text=(q.fact||"").trim();id("fact").textContent=text;story.classList.toggle("hidden",!text);story.classList.toggle("long",text.length>340&&text.length<=475);story.classList.toggle("very-long",text.length>475);
  if(shown!==q.id){
  shown=q.id;const img=id("photo");img.classList.add("hidden");img.removeAttribute("src");id("imagewarn").textContent="";
  if(q.image){
