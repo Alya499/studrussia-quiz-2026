@@ -92,7 +92,7 @@ function cycle(){
  if(shown!==idx)display(idx);
  const left=Math.max(0,DUR-(elapsed%DUR));
  const seconds=Math.ceil(left/1000);
- el("remaining").textContent="00:"+String(seconds===60?60:seconds).padStart(2,"0");
+ el("remaining").textContent=String(Math.floor(seconds/60)).padStart(2,"0")+":"+String(seconds%60).padStart(2,"0");
  el("fill").style.width=(100*left/DUR).toFixed(2)+"%";
 }
 function continueQuiz(){if(phase!=="pause")return;phase="main";phaseStart=Date.now();shown=-1;cycle();}
