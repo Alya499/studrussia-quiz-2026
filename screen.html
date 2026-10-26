@@ -67,7 +67,7 @@ let phase="ready",phaseStart=0,shown=-1;
 function switchPanel(which){for(const x of ["start","slide","pause","finish"])el(x).classList.toggle("hidden",x!==which);}
 function display(index){
  const q=QUESTIONS[index];shown=index;switchPanel("slide");
- el("blockLabel").textContent="БЛОК "+q.block+" · "+q.title+(q.block===0?" · БЕЗ БАЛЛОВ":"");
+ el("blockLabel").textContent="БЛОК "+q.block+" · "+q.title;
  el("questionNumber").textContent="Вопрос "+q.number+" из "+(q.block===0?5:6)+" · "+(index+1)+" из 35";
  el("topCount").textContent=(index+1)+" / "+QUESTIONS.length+" · 60 секунд";
  el("fact").textContent=q.fact;
