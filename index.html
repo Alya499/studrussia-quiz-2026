@@ -131,7 +131,7 @@ el("join").onclick=async()=>{
 };
 function paint(q){
  qid=q.id;selected=-1;sent=false;
- el("block").textContent=q.block===0?"РАЗМИНКА · без баллов":"БЛОК "+q.block+" · 0,5 балла";
+ el("block").textContent=q.block===0?"РАЗМИНКА":"БЛОК "+q.block;
  el("qnum").textContent="Вопрос "+q.number+" · 15 секунд на ответ";
  const box=el("choices");box.replaceChildren();
  (q.choices||[]).forEach((x,i)=>{
